@@ -1,34 +1,65 @@
-name: Deploy to EC2 via AWS + SSH
+name: Deploy to EC2 on Push
 
 on:
   push:
-    branches:
-      - main  # or your deploy branch
+    branches: [main]         # Trigger on push to main branch
+  workflow_dispatch:         # Allows manual run from GitHub UI
 
-steps:
-- name: Checkout repository
-  uses: actions/checkout@v3
+jobs:
+  deploy:
+    name: Deploy App to EC2
+    runs-on: ubuntu-latest
 
-- name: Configure SSH
-  run: |
-    mkdir -p ~/.ssh
-    echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-    chmod 600 ~/.ssh/id_rsa
-    ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-- name: SSH and deploy
-  run: |
-    ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_INSTANCE_ID }} << 'EOF'
-      cd /home/ubuntu
-      if [ ! -d "my-app" ]; then
-        git clone https://github.com/dheerendrabhandari8/kubernetes-role.git my-app
-      else
-        cd my-app
-        git pull origin main
-      fi
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+        aws-region: ${{ secrets.AWS_REGION_NAME }}
 
-      cd my-app
-      # Optional build/deploy steps:
-      # npm install
-      # pm2 restart app
-    EOF
+    - name: Fetch EC2 Public IP
+      id: get_ip
+      run: |
+        EC2_IP=$(aws ec2 describe-instances \
+          --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+          --query "Reservations[0].Instances[0].PublicIpAddress" \
+          --output text)
+        echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
+
+    - name: Setup SSH Key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H "$EC2_IP" >> ~/.ssh/known_hosts
+
+    - name: Deploy to EC2
+      run: |
+        ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
+          set -e
+
+          cd /home/${{ secrets.EC2_USERNAME }}
+
+          if [ ! -d my-app ]; then
+            git clone https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME.git my-app
+          else
+            cd my-app
+            git pull origin main
+          fi
+
+          cd my-app
+
+          # Example for Node.js app:
+          # npm install
+          # pm2 restart app || pm2 start npm --name "app" -- start
+
+          # Example for Python:
+          # pip install -r requirements.txt
+          # systemctl restart my-app
+
+          echo "✅ Deployment complete."
+        EOF
