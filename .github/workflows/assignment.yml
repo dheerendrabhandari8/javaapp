@@ -1,46 +1,27 @@
-name: Deploy to EC2
+steps:
+- name: Checkout repository
+  uses: actions/checkout@v3
 
-on:
-  push:
-    branches:
-      - main  # change if using a different deploy branch
+- name: Configure SSH
+  run: |
+    mkdir -p ~/.ssh
+    echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+    chmod 600 ~/.ssh/id_rsa
+    ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+- name: SSH and deploy
+  run: |
+    ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_INSTANCE_ID }} << 'EOF'
+      cd /home/ubuntu
+      if [ ! -d "my-app" ]; then
+        git clone https://github.com/dheerendrabhandari8/kubernetes-role.git my-app
+      else
+        cd my-app
+        git pull origin main
+      fi
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
-        aws-region: ${{ secrets.AWS_REGION_NAME }}
-
-    - name: Get EC2 Public IP
-      id: getip
-      run: |
-        EC2_IP=$(aws ec2 describe-instances \
-          --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
-          --query "Reservations[0].Instances[0].PublicIpAddress" \
-          --output text)
-        echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
-
-    # - name: Set up SSH key
-    #   run: |
-
-    #     echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-    #     chmod 600 ~/.ssh/id_rsa
-    #     ssh-keyscan -H "$EC2_IP" >> ~/.ssh/known_hosts
-
-    - name: SSH & Deploy
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
-          cd /home/ubuntu/  # adjust this path
-          git pull origin main
-          ls               # or pip install -r requirements.txt, etc.
-                     # or systemctl restart <service>
-        EOF
+      cd my-app
+      # Optional build/deploy steps:
+      # npm install
+      # pm2 restart app
+    EOF
