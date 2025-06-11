@@ -39,7 +39,8 @@ jobs:
 
     - name: SSH & Deploy
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
+        # ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
+          ssh -i  ${{ secrets.AWS_SECRET_KEY }} ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
           cd /home/ubuntu/  # adjust this path
           
           ls               # or pip install -r requirements.txt, etc.
