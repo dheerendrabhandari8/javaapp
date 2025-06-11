@@ -18,7 +18,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
-        aws-region: ${{ secrets.AWS_REGION_NAME }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Get EC2 Public IP
       id: getip
@@ -31,18 +31,16 @@ jobs:
 
     - name: Set up SSH key
       run: |
-          ssh -i 
-        mkdir -p ~/.ssh
+
         echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H "$EC2_IP" >> ~/.ssh/known_hosts
 
     - name: SSH & Deploy
       run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
-          # ssh -i  ${{ secrets.AWS_SECRET_KEY }} ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
+        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@$EC2_IP << 'EOF'
           cd /home/ubuntu/  # adjust this path
-          
+          git pull origin main
           ls               # or pip install -r requirements.txt, etc.
                      # or systemctl restart <service>
         EOF
