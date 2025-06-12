@@ -1,7 +1,7 @@
 name: Clone repo on AWS EC2
 
-on:
-  workflow_dispatch:
+on: [push]
+  
 
 jobs:
   clone-on-ec2:
